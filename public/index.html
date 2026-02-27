@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solat Checker ✨</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #064e3b 50%, #0ea5e9 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      background-attachment: fixed;
+    }
+
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+    }
+
+    h1 {
+      text-align: center;
+      color: #667eea;
+      margin-bottom: 10px;
+      font-size: 2em;
+    }
+
+    .date {
+      text-align: center;
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 0.9em;
+    }
+
+    .prayer-list {
+      list-style: none;
+    }
+
+    .prayer-item {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 15px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: 2px solid transparent;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .prayer-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+
+    .prayer-item.completed {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-color: #667eea;
+    }
+
+    .prayer-info {
+      flex: 1;
+    }
+
+    .prayer-name {
+      font-size: 1.3em;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    .prayer-time {
+      font-size: 0.9em;
+      opacity: 0.8;
+    }
+
+    .prayer-status {
+      text-align: right;
+      font-size: 0.85em;
+    }
+
+    .checkmark {
+      font-size: 2em;
+      margin-left: 15px;
+    }
+
+    .completed-time {
+      margin-top: 5px;
+      font-size: 0.8em;
+      opacity: 0.9;
+    }
+
+    .stats {
+      margin-top: 30px;
+      text-align: center;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 12px;
+    }
+
+    .stats-number {
+      font-size: 2.5em;
+      font-weight: bold;
+      color: #667eea;
+    }
+
+    .stats-label {
+      color: #666;
+      margin-top: 5px;
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        padding: 25px;
+      }
+
+      h1 {
+        font-size: 1.5em;
+      }
+
+      .prayer-item {
+        padding: 15px;
+      }
+
+      .prayer-name {
+        font-size: 1.1em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🕌 Solat Checker</h1>
+    <div class="date" id="dateDisplay">Loading...</div>
+    
+    <ul class="prayer-list" id="prayerList">
+      <!-- Prayer items will be inserted here -->
+    </ul>
+
+    <div class="stats">
+      <div class="stats-number" id="completedCount">0</div>
+      <div class="stats-label">solat dari 5 waktu</div>
+    </div>
+  </div>
+
+  <script>
+    let prayersData = [];
+
+    // Format timestamp to readable time
+    function formatTime(timestamp) {
+      if (!timestamp) return '';
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString('id-ID', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    }
+
+    // Format date
+    function formatDate(dateStr) {
+      const date = new Date(dateStr + 'T00:00:00');
+      return date.toLocaleDateString('id-ID', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    }
+
+    let userCoords = null;
+
+    function getUserLocation() {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject('Geolocation tidak didukung browser.');
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve(pos.coords),
+          (err) => reject(err.message)
+        );
+      });
+    }
+
+    // Load prayers data (with geolocation)
+    async function loadPrayers() {
+      try {
+        if (!userCoords) {
+          userCoords = await getUserLocation();
+        }
+
+        const response = await fetch(`/api/prayers?latitude=${userCoords.latitude}&longitude=${userCoords.longitude}`);
+        const data = await response.json();
+
+        prayersData = data.prayers;
+        document.getElementById('dateDisplay').textContent = formatDate(data.date);
+        renderPrayers();
+      } catch (error) {
+        console.error('Error loading prayers:', error);
+        alert('Gagal mendapatkan lokasi atau jadwal solat.');
+      }
+    }
+
+    // Render prayers list
+    function getNextPrayer() {
+      const now = new Date();
+      for (let prayer of prayersData) {
+        const [h, m] = prayer.time.split(':');
+        const prayerDate = new Date();
+        prayerDate.setHours(h, m, 0, 0);
+        if (prayerDate > now) return prayer.id;
+      }
+      return null;
+    }
+
+    function renderPrayers() {
+      const list = document.getElementById('prayerList');
+      list.innerHTML = '';
+
+      let completedCount = 0;
+      const nextPrayerId = getNextPrayer();
+
+      prayersData.forEach(prayer => {
+        const isCompleted = !!prayer.completed;
+        if (isCompleted) completedCount++;
+
+        const li = document.createElement('li');
+        li.className = `prayer-item ${isCompleted ? 'completed' : ''}`;
+
+        if (prayer.id === nextPrayerId) {
+          li.style.border = '2px solid #0ea5e9';
+          li.style.boxShadow = '0 0 15px rgba(14,165,233,0.4)';
+        }
+
+        li.onclick = () => togglePrayer(prayer.id);
+
+        li.innerHTML = `
+          <div class="prayer-info">
+            <div class="prayer-name">${prayer.name}</div>
+            <div class="prayer-time">${prayer.time} WIB ${prayer.id === nextPrayerId ? '🕒 Waktu Berikutnya' : ''}</div>
+            ${isCompleted ? `<div class="completed-time">✓ ${formatTime(prayer.completed)}</div>` : ''}
+          </div>
+          ${isCompleted ? '<div class="checkmark">✓</div>' : ''}
+        `;
+
+        list.appendChild(li);
+      });
+
+      document.getElementById('completedCount').textContent = completedCount;
+    }
+
+    // Toggle prayer completion
+    async function togglePrayer(prayerId) {
+      const prayer = prayersData.find(p => p.id === prayerId);
+      const isCompleted = !!prayer.completed;
+
+            if (isCompleted) return;
+      const endpoint = `/api/prayers/${prayerId}/complete`;
+      try {
+        const response = await fetch(endpoint, { method: 'POST' });
+        if (response.ok) {
+          await loadPrayers();
+        } else {
+          const err = await response.json();
+          alert(err.error || 'Gagal checklist solat.');
+        }
+      } catch (error) {
+        alert('Gagal checklist solat.');
+      }
+    }
+
+    // Initial load
+    loadPrayers();
+
+    // Auto-refresh every minute to check for new day
+    setInterval(loadPrayers, 60000);
+  </script>
+</body>
+</html>

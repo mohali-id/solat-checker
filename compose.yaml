@@ -1,0 +1,14 @@
+services:
+  solat-app:
+    build:
+      context: .
+    container_name: solat-app
+    restart: unless-stopped
+    networks:
+      - tunnel-net
+    expose:
+      - "3000"
+
+networks:
+  tunnel-net:
+    external: true
